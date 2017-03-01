@@ -1,0 +1,106 @@
+---
+title: "Programming Exercises"
+author: "Cheng Yee Lim"
+date: "February 1, 2017"
+output: github_document
+---
+
+## Load necessary libraries
+
+```{r}
+library(tidyverse)
+library(knitr)
+```
+
+## Compute the number of unique values in each column of `iris`
+
+### Using a `for` loop
+
+```{r}
+dfIris <- as_tibble(iris)
+uniqueIris <- vector(mode="double", length = ncol(dfIris))
+for (i in seq_along(dfIris)){
+  uniqueIris[i] <- unique(dfIris[i], na.rm = TRUE)
+  print(length(uniqueIris[[i]]))
+}
+```
+
+### Using a `map` function
+
+```{r}
+uniqueMapIris <- map(dfIris, unique)
+for(i in seq_along(uniqueMapIris)){
+  print(length(uniqueMapIris[[i]]))
+}
+```
+
+## Calculate the square of each element in vector `x`
+
+```{r}
+x <- 1:30
+```
+
+### Using a `for` loop
+
+```{r}
+xSq <- vector(mode = "double", length = length(x))
+for (i in x) {
+  xSq[[i]] <- x[[i]]*x[[i]] 
+}
+xSq
+```
+
+### Using a `map` function
+
+```{r}
+squared <- function(a) {
+  square = a^2
+  return(square)
+}
+
+xSqMap <- map_dbl(x, squared)
+xSqMap
+```
+
+## Write a function to calculate length of sides in a right-triangle using the Pythagorean Theorem
+
+```{r}
+pythagorean <-function(a=NA,b=NA,c=NA) {
+  if (sum(is.na(c(a,b,c))) > 1) {
+    return("You have provided lengths for less than two sides. Only provide the length for two sides")
+  }
+  else if (sum(is.na(c(a,b,c))) == 0) {
+    return("You have provided lengths for all three sides. Only provide the length for two sides.")
+  }
+  else {
+    try(a+b+c, return(" least one argument is not numeric. Only provide numbers."))
+  }
+  
+  if (is.na(a)) {
+    ans = (c^2 - b^2)^0.5
+  }
+  else if (is.na(b)) {
+    ans = (-a^2 + c^2)^0.5
+  }
+  else if (is.na(c)) {
+    ans = (b^2 + a^2)^0.5
+  }
+  return(ans)
+}
+
+pythagorean(a = 3, b = 4)
+pythagorean(b = 4, c = 5)
+pythagorean(a = 3, c = 5)
+pythagorean(a = 3, b = 4, c = 5)
+pythagorean(a = 3)
+pythagorean(a = 3, b = "4")
+
+```
+
+## Session info
+
+```{r}
+devtools::session_info()
+```
+
+

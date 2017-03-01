@@ -1,0 +1,244 @@
+---
+title: "Exploring World Bank Data"
+author: "Cheng Yee Lim"
+date: "February 1, 2017"
+output: github_document
+---
+
+## Load necessary libraries
+
+```{r}
+library(tidyverse)
+library(knitr)
+```
+
+## Write a function to import the data files
+``` {r}
+import <- function(a) {
+  #read datafile 
+  sample <- read.csv(file = a,
+                     sep = ",",
+                     header = T,
+                     skip = 4)[, c(1:60)] %>%
+    filter((`Indicator.Code` == 'IT.MLT.MAIN.P2') | 
+             (`Indicator.Code` == 'IT.NET.USER.P2') |
+             (`Indicator.Code` == 'IT.CEL.SETS.P2') |
+             (`Indicator.Code` == 'SP.URB.TOTL.IN.ZS')) %>%    
+    select(-`Indicator.Code`) %>%
+    gather(`X1960`:`X2015`, key = "Year", value = "Data") 
+  sample$Year <- substr(sample$Year, 2, 5) #remove redundant X
+  sample <- sample %>%
+    spread(key = `Indicator.Name`, value = Data, convert = TRUE) %>% 
+    filter(Year > 1999)
+  return(sample)
+}
+```
+
+## Import the data
+
+```{r}
+fileNames <- list.files(path="./data_world_bank/", pattern=".*csv")
+
+for(i in (1:length(fileNames))){
+    filepath <- file.path("./data_world_bank", paste(fileNames[i], sep=""))
+    if(i==1){
+      df1 <- import(filepath)  
+    }
+    else{
+      df2 <- import(filepath)
+      df1 <- bind_rows(df1, df2)
+    }
+}
+```
+
+## Explore the data
+```{r}
+#rename variable names 
+colnames(df1) <- c("country", "countrycode", "year", "tele100", "internet100", "mobile100", "urban")
+
+#defining sub categories of countries - developing and developed 
+countriesAll <- unique(df1$country)
+countriesDeveloped <- countriesAll[-c(1,3,11,12)]
+countriesDeveloping <- countriesAll[c(1,3,11,12)]
+
+#creating dummy variable for developed and developing
+df1$developed[df1$country %in% countriesDeveloped] <- 1
+df1$developed[df1$country %in% countriesDeveloping] <- 0
+
+#horizontal bar chart to identify the changes in percentage of internet/mobile/telephone users 
+userplot <- function(dataframe, countryName) {
+  dataframe1 <- dataframe %>%
+  filter(country == countryName) %>%
+  gather(`mobile100`:`tele100`, key = 'technology', value = 'subscriptions')
+  
+  plot <- ggplot(data = dataframe1) + 
+    geom_bar(aes(y = subscriptions, x = year, fill = technology), 
+             stat = "identity", 
+             position = "fill") +
+    labs(
+      x = "Year", 
+      y = "Percentage", 
+      title = countryName,
+      subtitle ="Percentage of Telephone, Mobile Phone and Internet Subscribers",
+      fill = "Technology") +
+    scale_fill_discrete(
+      breaks = c("internet100", "mobile100", "tele100"),
+      labels=c("Internet", "Mobile Phones", "Telephone")
+      ) + 
+    theme(plot.title=element_text(
+      size=25, 
+      hjust=0.5, 
+      face="bold", 
+      colour="black", 
+      vjust=-1)) + 
+    theme(plot.subtitle=element_text(
+      size=15, 
+      hjust=0.5,
+      color="black")) + 
+    theme(legend.position = "bottom") + 
+    scale_y_continuous(labels =scales::percent)
+
+  print(plot)
+}
+
+for(i in (1:length(countriesDeveloped))){
+  userplot(df1, countriesDeveloped[i])
+}
+
+for(i in (1:length(countriesDeveloping))){
+  userplot(df1, countriesDeveloping[i])
+}
+
+#Developing-Developed telephone subscribers 
+df1 %>%
+  group_by(year, developed) %>%
+  summarize(
+    avgtele = mean(tele100), 
+    avgmobile = mean(mobile100), 
+    avginternet = mean(internet100)
+    ) %>% 
+  ggplot() + 
+  geom_line(aes(
+    x = year, 
+    y = avgtele, 
+    group=factor(developed), 
+    color = factor(developed))) + 
+  labs(
+    x = "Year", 
+    y = "Percentage (%)", 
+    title = "Average Fixed Telephone Subscribers (per 100 people)",
+    color = "Countries") +
+  scale_color_discrete(
+    breaks = c(0,1), 
+    labels=c("Developing", "Developed")) + 
+  theme(plot.title=element_text(
+    size=16, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1))
+
+#Developing-Developed mobile phone subscribers 
+df1 %>%
+  group_by(year, developed) %>%
+  summarize(
+    avgtele = mean(tele100), 
+    avgmobile = mean(mobile100), 
+    avginternet = mean(internet100)
+    ) %>% 
+  ggplot() + 
+  geom_line(aes(
+    x = year, 
+    y = avgmobile, 
+    group=factor(developed), 
+    color = factor(developed))) + 
+  labs(
+    x = "Year", 
+    y = "Percentage (%)", 
+    title = "Average Mobile Phone Subscribers (per 100 people)",
+    color = "Countries") +
+  scale_color_discrete(
+    breaks = c(0,1), 
+    labels=c("Developing", "Developed")) + 
+  theme(plot.title=element_text(
+    size=16, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1))
+
+#Developing-Developed internet subscribers 
+df1 %>%
+  group_by(year, developed) %>%
+  summarize(
+    avgtele = mean(tele100), 
+    avgmobile = mean(mobile100), 
+    avginternet = mean(internet100)
+    ) %>% 
+  ggplot() + 
+  geom_line(aes(
+    x = year, 
+    y = avginternet, 
+    group=factor(developed), 
+    color = factor(developed))) + 
+  labs(
+    x = "Year", 
+    y = "Percentage (%)", 
+    title = "Average Internet Subscribers (per 100 people)",
+    color = "Countries") +
+  scale_color_discrete(
+    breaks = c(0,1), 
+    labels=c("Developing", "Developed")) + 
+  theme(plot.title=element_text(
+    size=16, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1))
+
+#Relationship between urbanisation and internet adoption (Developing Countries)
+df1 %>% 
+  filter(country %in% countriesDeveloping) %>% 
+  ggplot() + 
+  geom_point(aes(x = urban, y=internet100, color = country), position = "jitter") + 
+  labs(
+    x = "Percentage of Population living in Urban Areas (%)", 
+    y = "Internet Subscribers per 100 people", 
+    title = "Urbanization and Internet Subscribers in Developing Countries",
+    color = "Country") +
+  theme(plot.title=element_text(
+    size=15, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1)) + 
+  theme(legend.position = "bottom")
+
+#Relationship between urbanisation and internet adoption (Developed Countries)
+df1 %>% 
+  filter(country %in% countriesDeveloped) %>% 
+  ggplot() + 
+  geom_point(aes(x = urban, y=internet100, color = country), position = "jitter") + 
+  labs(
+    x = "Percentage of Population living in Urban Areas (%)", 
+    y = "Internet Subscribers per 100 people", 
+    title = "Urbanization and Internet Subscribers in Developed Countries",
+    color = "Country") +
+  theme(plot.title=element_text(
+    size=15, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1)) + 
+  theme(legend.position = "bottom")
+  
+
+```
+
+## Session info
+
+```{r}
+devtools::session_info()
+```
+
+

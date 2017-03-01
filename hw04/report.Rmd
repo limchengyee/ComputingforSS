@@ -1,0 +1,266 @@
+---
+title: "World Bank Report on Telecommunications"
+author: "Cheng Yee Lim"
+date: "February 1, 2017"
+output: github_document
+---
+
+
+```{r, include = FALSE}
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  cache = TRUE, 
+  message = FALSE, 
+  warning = FALSE
+  )
+
+library(tidyverse)
+library(knitr)
+library(pastecs)
+```
+
+## Introduction
+The decade of explosive growth of the Internet has revolutionised the way things work in the world and heralded a new era of communications. The new possibilities enabled by the internet has resultantly led to different developments in telecommunications in countries. In this report, I analyze the recent developments in telecommunications with the changes in fixed telephone, mobile phone and internet subscribers in the United Nation Security Council countries. I also examined the trends of these telecommunication indicators between developed and developing countries. Lastly, I explore the relationship between urbanization and internet adoption, and hypothesize that the share of population living in cities has a positive impact on Internet adoption in poor countries.
+
+##Substitution Effect of Telephones and Mobile Phones 
+Using the indicators, internet subscribers (per 100 people), mobile phone subscribers (per 100 people) and fixed telephone line subscribers (per 100 people), the bar graphs for each country show the relative change of each type of subscribers to other subscribers. From the graphs of both developed and developing countries, we can see a decreasing trend in the number of fixed telephone line subscribers and an increasing trend in the number of mobile phone subscribers. This can be viewed as a substitution effect between mobile phones and fixed telephone lines. This substitution effect can be attributed to the invention of mobile smartphones, which offer more services than fixed telephone lines. The trend of the number of internet subscribers is more ambiguous, especially among the developing countries.
+
+```{r}
+#import function
+import <- function(a) {
+  sample <- read.csv(file = a,
+                     sep = ",",
+                     header = T,
+                     skip = 4)[, c(1:60)] %>%
+    filter((`Indicator.Code` == 'IT.MLT.MAIN.P2') | 
+             (`Indicator.Code` == 'IT.NET.USER.P2') |
+             (`Indicator.Code` == 'IT.CEL.SETS.P2') |
+             (`Indicator.Code` == 'SP.URB.TOTL.IN.ZS')) %>%    
+    select(-`Indicator.Code`) %>%
+    gather(`X1960`:`X2015`, key = "Year", value = "Data") 
+  sample$Year <- substr(sample$Year, 2, 5) #remove redundant X
+  sample <- sample %>%
+    spread(key = `Indicator.Name`, value = Data, convert = TRUE) %>% 
+    filter(Year > 1999)
+  return(sample)
+}
+
+fileNames <- list.files(path="./data_world_bank/", pattern=".*csv")
+
+for(i in (1:length(fileNames))){
+    filepath <- file.path("./data_world_bank", paste(fileNames[i], sep=""))
+    if(i==1){
+      df1 <- import(filepath)  
+    }
+    else{
+      df2 <- import(filepath)
+      df1 <- bind_rows(df1, df2)
+    }
+}
+
+#rename variable names 
+colnames(df1) <- c("country", "countrycode", "year", "tele100", "internet100", "mobile100", "urban")
+
+#defining sub categories of countries - developing and developed 
+#ctrycode = c("AGO", "CHN", "EGY", "ESP", "FRA", "GBR", "JPN", "MYS", "NZL", "RUS", "SEN", "UKR", "URY", "USA", "VEN")
+countriesAll <- unique(df1$country)
+countriesDeveloped <- countriesAll[-c(1,3,11,12)]
+countriesDeveloping <- countriesAll[c(1,3,11,12)]
+
+#horizontal bar chart to identify the changes in percentage of internet/mobile/telephone users 
+
+```
+
+```{r userplot_function}
+userplot <- function(dataframe, countryName) {
+  dataframe1 <- dataframe %>%
+  filter(country == countryName) %>%
+  gather(`mobile100`:`tele100`, key = 'technology', value = 'subscriptions')
+  
+  plot <- ggplot(data = dataframe1) + 
+    geom_bar(aes(y = subscriptions, x = year, fill = technology), 
+             stat = "identity", 
+             position = "fill") +
+    labs(
+      x = "Year", 
+      y = "Percentage", 
+      title = countryName,
+      subtitle ="Percentage of Telephone, Mobile Phone and Internet Subscribers",
+      fill = "Technology") +
+    scale_fill_discrete(
+      breaks = c("internet100", "mobile100", "tele100"),
+      labels=c("Internet", "Mobile Phones", "Telephone")
+      ) + 
+    theme(plot.title=element_text(
+      size=25, 
+      hjust=0.5, 
+      face="bold", 
+      colour="black", 
+      vjust=-1)) + 
+    theme(plot.subtitle=element_text(
+      size=15, 
+      hjust=0.5,
+      color="black")) + 
+    theme(legend.position = "bottom") + 
+    scale_y_continuous(labels =scales::percent)
+
+  print(plot)
+  
+}
+
+```
+
+###Developed Countries 
+```{r, echo = FALSE, dependson = "userplot_function"}
+for(i in (1:length(countriesDeveloped))){
+  userplot(df1, countriesDeveloped[i])
+}
+```
+
+###Developing Countries
+```{r, dependson = "userplot_function", message = FALSE,}
+for(i in (1:length(countriesDeveloping))){
+  userplot(df1, countriesDeveloping[i])
+}
+```
+
+##Leapfrogging in Developing Countries 
+The substitution effect is much more prominent in developing countries than developed countries. Developing countries are defined as low income and low-middle income countries and developed countries are defined as upper-middle and high income countries in the World Bank Country Income classifications. This corroborates with the view that mobile phones are an example of leapfrog technology, allowing developing countries to reap the benefits of a communication network without the heavy investment in fixed telephone infrastructure. This is also supported by the line charts below, which compares the growth of telephone and mobile phones subscribers in developing and developed countries. The average percentage of fixed telephone subscribers in developing countries never caught up to that of developed countries. But the gap between the average mobile phone subscribers of developed and developing countries narrowed from 2000 to 2015. 
+```{r, echo=FALSE, message = FALSE, cache = FALSE}
+#creating dummy variable for developed and developing
+df1$developed[df1$country %in% countriesDeveloped] <- 1
+df1$developed[df1$country %in% countriesDeveloping] <- 0
+
+df1 %>%
+  group_by(year, developed) %>%
+  summarize(
+    avgtele = mean(tele100), 
+    avgmobile = mean(mobile100), 
+    avginternet = mean(internet100)
+    ) %>% 
+  ggplot() + 
+  geom_line(aes(
+    x = year, 
+    y = avgtele, 
+    group=factor(developed), 
+    color = factor(developed))) + 
+  labs(
+    x = "Year", 
+    y = "Percentage (%)", 
+    title = "Average Fixed Telephone Subscribers (per 100 people)",
+    color = "Countries") +
+  scale_color_discrete(
+    breaks = c(0,1), 
+    labels=c("Developing", "Developed")) + 
+  theme(plot.title=element_text(
+    size=16, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1))
+
+df1 %>%
+  group_by(year, developed) %>%
+  summarize(
+    avgtele = mean(tele100), 
+    avgmobile = mean(mobile100), 
+    avginternet = mean(internet100)
+    ) %>% 
+  ggplot() + 
+  geom_line(aes(
+    x = year, 
+    y = avgmobile, 
+    group=factor(developed), 
+    color = factor(developed))) + 
+  labs(
+    x = "Year", 
+    y = "Percentage (%)", 
+    title = "Average Mobile Phone Subscribers (per 100 people)",
+    color = "Countries") +
+  scale_color_discrete(
+    breaks = c(0,1), 
+    labels=c("Developing", "Developed")) + 
+  theme(plot.title=element_text(
+    size=16, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1))
+
+```
+
+##Investigating Internet Adoption 
+Lastly, I attempt to clarify the ambiguous trend of internet adoption in countries from the bar graphs. I do so by plotting the average internet subscribers in developed and developing countries. The line graph below shows that internet subscribers have increased in both developed and developing countries, but at a faster rate in developed countries. This is unsurprising as developing countries often lack the wealth and infrastructure to promote widespread adoption of new technologies.   
+
+```{r, echo=FALSE, message = FALSE, cache = FALSE}
+df1 %>%
+  group_by(year, developed) %>%
+  summarize(
+    avgtele = mean(tele100), 
+    avgmobile = mean(mobile100), 
+    avginternet = mean(internet100)
+    ) %>% 
+  ggplot() + 
+  geom_line(aes(
+    x = year, 
+    y = avginternet, 
+    group=factor(developed), 
+    color = factor(developed))) + 
+  labs(
+    x = "Year", 
+    y = "Percentage (%)", 
+    title = "Average Internet Subscribers (per 100 people)",
+    color = "Countries") +
+  scale_color_discrete(
+    breaks = c(0,1), 
+    labels=c("Developing", "Developed")) + 
+  theme(plot.title=element_text(
+    size=16, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1))
+```
+
+###The role of Urbanization in Internet Adoption  
+In this case, we use urbanization as a proxy of infrastructure and wealth of a country and conduct a preliminary investigation of the relationship between urbanization and internet adoption. The scatter plot suggests that a higher level of urbanization is often correlated with higher internet adoption in developing countries. This relationship is, however, less clear in developed countries. We can also identify that China is an outlier among the developed countries. Despite having high incomes, China still remains less urbanized and have achieved significantly lower levels of internet adoption than the rest of the developed countries. 
+```{r, echo=FALSE, message = FALSE, cache = FALSE}
+#Relationship between urbanisation and internet adoption (Developing Countries)
+df1 %>% 
+  filter(country %in% countriesDeveloping) %>% 
+  ggplot() + 
+  geom_point(aes(x = urban, y=internet100, color = country), position = "jitter") + 
+  labs(
+    x = "Percentage of Population living in Urban Areas (%)", 
+    y = "Internet Subscribers per 100 people", 
+    title = "Urbanization and Internet Subscribers in Developing Countries",
+    color = "Country") +
+  theme(plot.title=element_text(
+    size=15, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1)) + 
+  theme(legend.position = "bottom")
+
+#Relationship between urbanisation and internet adoption (Developed Countries)
+df1 %>% 
+  filter(country %in% countriesDeveloped) %>% 
+  ggplot() + 
+  geom_point(aes(x = urban, y=internet100, color = country), position = "jitter") + 
+  labs(
+    x = "Percentage of Population living in Urban Areas (%)", 
+    y = "Internet Subscribers per 100 people", 
+    title = "Urbanization and Internet Subscribers in Developed Countries",
+    color = "Country") +
+  theme(plot.title=element_text(
+    size=15, 
+    hjust=0.5, 
+    face="bold", 
+    colour="black", 
+    vjust=-1)) + 
+  theme(legend.position = "bottom")
+  
+  
+```

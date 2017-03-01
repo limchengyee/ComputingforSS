@@ -1,0 +1,143 @@
+---
+title: "Appendix"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, include = FALSE}
+library(tidyverse)
+library(foreign)
+library(stringr)
+library(ggmap)
+
+```
+
+```{r import, include = FALSE}
+## Write a function to import the data files
+import <- function(a) {
+  #read datafile 
+  sample <- read.csv(file = a,
+                     sep = ",",
+                     header = T,
+                     skip = 4)[, c(1:60)] %>%
+  filter((`Indicator.Code` == 'IT.MLT.MAIN.P2') | 
+           (`Indicator.Code` == 'IT.NET.USER.P2') |
+           (`Indicator.Code` == 'IT.CEL.SETS.P2') |
+           (`Indicator.Code` == 'DT.ODA.ODAT.CD') |
+           (`Indicator.Code` == 'DT.ODA.OATL.CD') |
+           (`Indicator.Code` == 'DT.ODA.ALLD.CD') |
+           (`Indicator.Code` == 'SI.POV.DDAY') |
+           (`Indicator.Code` == 'SI.DST.FRST.20')) %>%    
+  select(-`Indicator.Code`) %>%
+  gather(`X1960`:`X2015`, key = "Year", value = "Data") 
+sample$Year <- substr(sample$Year, 2, 5) #remove redundant X
+sample <- sample %>%
+  spread(key = `Indicator.Name`, value = Data, convert = TRUE) %>% 
+  filter(Year > 1999)
+
+  return(sample)
+}
+```
+
+```{r, include = FALSE}
+#import core data files 
+infrastructure <- import("./data/infrastructure.csv")
+aid <- import("./data/aid_effectiveness.csv")
+
+#import country labels 
+countries <- read.csv(file = "./data/labels/aid_effectiveness_countries.csv",
+                      sep = ",", 
+                      header = TRUE)[ , c(1:3)] %>% 
+  purrr::set_names(c("Country.Code", "region", "income"))
+
+#import lat-long coords of countries
+world.dbf <- read.dbf("./map/TM_WORLD_BORDERS-0.3.dbf", as.is = FALSE) %>%
+  select(`ISO3`, `LON`, `LAT`) %>%
+  purrr::set_names(c("Country.Code", "long", "lat"))
+
+#merge information of countries with aid_effectiveness + infrastructure dataset
+df1 <- left_join(aid, infrastructure, by = c("Country.Code", "Year"))
+df1 <- left_join(df1, countries, by = "Country.Code")
+df1 <- left_join(df1, world.dbf, by = "Country.Code") %>%
+  select(-`Country.Name.y`) %>%
+  purrr::set_names(c("country", "countrycode", "year", "income20", "official_aid",
+                     "aid_all", "oda", "poverty_ratio", "fixed_tele100", "internet100",                      "mobile100", "region", "income", "long", "lat")) %>%
+  filter(!(is.na(long)))
+```
+
+```{r user_function, include = FALSE}
+#horizontal bar chart to identify the changes in percentage of internet/mobile/telephone users 
+userplot <- function(dataframe, countryName) {
+  dataframe1 <- dataframe %>%
+  filter(country == countryName) %>%
+  gather(`mobile100`:`fixed_tele100`, key = 'technology', value = 'subscriptions')
+  
+  plot <- ggplot(data = dataframe1) + 
+    geom_bar(aes(y = subscriptions, x = year, fill = technology), 
+             stat = "identity", 
+             position = "fill") +
+    labs(
+      x = "Year", 
+      y = "Percentage", 
+      title = countryName,
+      subtitle ="Percentage of Telephone, Mobile Phone and Internet Subscribers",
+      fill = "Technology") +
+    scale_fill_discrete(
+      breaks = c("internet100", "mobile100", "fixed_tele100"),
+      labels=c("Internet", "Mobile Phones", "Telephone")
+      ) + 
+    theme(plot.title=element_text(
+      size=25, 
+      hjust=0.5, 
+      face="bold", 
+      colour="black", 
+      vjust=-1)) + 
+    theme(plot.subtitle=element_text(
+      size=15, 
+      hjust=0.5,
+      color="black")) + 
+    theme(legend.position = "bottom") + 
+    scale_y_continuous(labels =scales::percent)
+
+  print(plot)
+}
+
+countries <- unique(df1$country)
+low_income <- unique(df1$country[df1$income == "Low income"])
+low_mid_income <- unique(df1$country[df1$income == "Lower middle income"])
+upp_mid_income <- unique(df1$country[df1$income == "Upper middle income"])
+high_income <- unique(df1$country[df1$income == "High income"])
+```
+
+###Low Income Countries 
+```{r low, warning = FALSE, message = FALSE, echo = FALSE}
+for(i in (1:length(low_income))){
+  userplot(df1, low_income[i])
+}
+```
+
+###Low-middle Income Countries 
+```{r low_mid, warning = FALSE, message = FALSE, echo = FALSE}
+for(i in (1:length(low_mid_income))){
+  userplot(df1, low_mid_income[i])
+}
+```
+
+###Upper Middle Countries 
+```{r upp_mid, warning = FALSE, message = FALSE, echo = FALSE}
+for(i in (1:length(upp_mid_income))){
+  userplot(df1, upp_mid_income[i])
+}
+```
+
+###High Income Countries 
+```{r high, warning = FALSE, message = FALSE, echo = FALSE}
+for(i in (1:length(high_income))){
+  userplot(df1, high_income[i])
+}
+```
+
+

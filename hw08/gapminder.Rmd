@@ -1,0 +1,59 @@
+---
+title: "Further exploration of Gapminder data"  
+author: "Cheng Yee Lim"  
+date: "February 28, 2017"  
+output: github_document
+---
+
+
+```{r, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(
+  cache = TRUE, 
+  message = FALSE, 
+  warning = FALSE
+  )
+
+library(tidyverse)
+library(gapminder)
+library(geonames)
+library(countrycode)
+library(knitr)
+
+theme_set(theme_minimal())
+```
+
+To investigate the relationship between population density and average life expectancy, we have merge data from `gapminder` and country information from `geonames`. However, there isn't a unique identifier for the two datasets. Upon identifying the problem, we leverage on the `countrycode` library to create a unique identifier, `countryCode`, which is also the ISO-2 character country code, to merge both datasets.
+
+```{r, results = "asis"}
+countryInfo <- GNcountryInfo() #obtain country info from geonames
+kable(head(countryInfo))
+      
+iso2c <- countrycode_data %>% 
+  select(country.name.en, iso2c) %>% #use countrycode iso2c as unique identifier between gapminder and geonames
+  rename(country = country.name.en,
+         countryCode = iso2c) #rename columns to match with gapminder and geonames
+kable(head(iso2c))
+
+gapminder <- gapminder %>%
+  left_join(iso2c, by = "country") #merge gapminder with unique identifer iso2c
+kable(head(gapminder))
+
+gapminder <- gapminder[, c(7,1,2,3,4,5,6)] %>%
+  left_join(countryInfo, by = "countryCode") #merge gapminder and geonames info with countrycode (iso2c)
+kable(head(gapminder))
+
+gapminder %>%
+  mutate(popd = pop/as.numeric(areaInSqKm)) %>% #convert to population in population density
+  ggplot(aes(popd, lifeExp, color = continent.x)) + 
+  geom_point(alpha = .2) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_x_log10() +
+  labs(title = "Average Life Expectancy and Population Density by Continent",
+       x = "Population density",
+       y = "Average life expectancy",
+       color = "Continent") + 
+  theme(legend.position = "bottom")
+
+```
+
+Our graph shows that there is a positive relationship between average life expectancy and population in Africa and ASia continent. However, an increase in population density in Americas, Europe and Oceania does not result in an improvement in average life expectancy. This could be explained by the nature of countries in the different regions. Africa and Asia have a higher proportion of developing countries in their continent, than Americas, Europe and Oceania. An increase in population density is often a result of urbanization, which also corresponds with an improvement in amenities and living standards in the country, thus resulting in a rise average life expectancy. On the other hand, continents with a high proportion of developed countries in the continent are already urbanized and an increase in population density may only reflect migration flows or increasing birth rates, which is uncorrelated with average life expectancy. 

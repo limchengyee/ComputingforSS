@@ -1,0 +1,295 @@
+---
+title: "Exploring Gun Deaths in America"
+author: "Cheng Yee Lim"
+output: github_document
+---
+
+### Get the data
+
+```{r, results='hide'}
+library(tidyverse)    # load tidyverse packages, including ggplot2
+library(rcfss)
+library(knitr)
+library(stringr)
+library(scales)
+library(lvplot)
+
+# load the data
+data("gun_deaths")
+gun_deaths
+```
+
+## In what month do the most gun deaths occur?
+Most gun deaths occur in July. 
+```{r}
+count(gun_deaths, month) %>%
+  kable(caption = "Gun Deaths in the United States (2012-2014) by Month", 
+        col.names = c("Month", "Number of Deaths"))
+```
+
+### With a bar chart 
+```{r}
+ggplot(data = gun_deaths) + 
+  geom_bar(aes(month, fill = factor(month))) + 
+  ggtitle("Gun Deaths in the United States (2012-2014) by Month") + 
+  xlab("Month") + 
+  ylab("Number of Gun Deaths") + 
+  scale_fill_discrete(guide=FALSE) +
+  scale_x_continuous(
+    breaks = 
+      round(seq(min(gun_deaths$month), max(gun_deaths$month), by = 1.0),1), 
+    labels = 
+      c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")) 
+```
+
+### With a line chart 
+```{r}
+month.gun <- gun_deaths %>%
+  group_by(month) %>%
+  summarize(count = n())
+
+ggplot(data=month.gun) + 
+  geom_line(aes(month, count)) +
+  ggtitle("Gun Deaths in the United States (2012-2014) by Month") + 
+  xlab("Month") + 
+  ylab("Number of Gun Deaths") + 
+  ylim(0, 9000) + 
+  scale_x_continuous(
+    breaks = 
+      round(seq(min(gun_deaths$month), max(gun_deaths$month), by = 1.0),1), 
+    labels = 
+      c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+```
+
+## What is the most common intent in gun deaths? Do most people killed by guns die in suicides, homicides, or accidental shootings?
+The most common intent in gun deaths is suicide. 
+```{r}
+count(gun_deaths, intent) %>%
+  kable(caption = "Gun Deaths in the United States (2012-2014) by Intent", 
+        col.names = c("Intent of Shooting", "Number of Deaths"))
+```
+
+### With a bar graph 
+```{r}
+intent.gun <- filter(gun_deaths, intent!= "NA")
+ggplot(data = intent.gun) + 
+  geom_bar(aes(intent, fill = factor(intent))) + 
+  ggtitle("Gun Deaths in the United States (2012-2014) by Intent of Death") + 
+  xlab("Intent of Death") + 
+  ylab("Number of Gun Deaths") + 
+  scale_fill_discrete(guide=FALSE) +
+  scale_x_discrete(
+    limits=c("Suicide","Homicide","Accidental", "Undetermined"))
+```
+
+## What is the average age of females killed by guns?
+The average age of females killed by guns is 43.74. 
+```{r}
+female.age.guns <- gun_deaths %>%
+  group_by(sex) %>%
+  filter(age > 0) %>%
+  summarize(female.age = mean(age, na.rm = TRUE))
+
+kable(female.age.guns, 
+      caption = "Average Age of Gun Death Victims (2012-2014) by Sex", 
+      col.names = c("Sex", "Average Age"), digits = 2)
+```
+
+### Using a bar graph 
+```{r}
+ggplot(data = female.age.guns) + 
+  geom_bar(aes(sex, female.age), stat = "identity") + 
+  ggtitle("Average Age of Gun Deaths Victims (2012-2014) by Sex") +
+  xlab("Sex of Victim") + 
+  ylab("Age of Victim") + 
+  scale_x_discrete(breaks =c("F", "M"), labels = c("Female", "Male"))
+```
+
+### Using a boxplot 
+```{r}
+ggplot(data=gun_deaths) + 
+  geom_boxplot(aes(sex, age)) + 
+  ggtitle("Average Age of Gun Deaths Victims (2012-2014) by Sex") + 
+  xlab("Sex of Victim") + 
+  ylab("Age of Victim") +
+  scale_x_discrete(breaks =c("F", "M"), labels = c("Female", "Male"))
+```
+
+### Using a violin plot 
+```{r}
+ggplot(data=gun_deaths) + 
+  geom_violin(aes(sex, age)) + 
+  ggtitle("Average Age of Victims (2012-2014) by Sex") + 
+  xlab("Sex") + 
+  ylab("Age of Victim") +
+  scale_x_discrete(breaks =c("F", "M"), labels = c("Female", "Male"))
+```
+
+### Using a letter-value boxplot 
+``` {r}
+ggplot(data=gun_deaths) + 
+  geom_lv(aes(sex, age)) + 
+  ggtitle("Average Age of Victims (2012-2014) by Sex") + 
+  xlab("Sex") + 
+  ylab("Age of Victim") +
+  scale_x_discrete(breaks =c("F", "M"), labels = c("Female", "Male"))
+```
+
+## How many white males with at least a high school education were killed by guns in 2012?
+There were 15199 white males with at least a high school education killed by guns in 2012.
+
+```{r}
+white.highschool <- gun_deaths %>% 
+  filter(education!="NA") %>%
+  filter(sex == "M") %>%
+  filter(race == "White") %>%
+  filter(year == 2012) %>%
+  filter(education != "Less than HS") %>% 
+  summarize(count = n())
+```
+
+## Which season of the year has the most gun deaths?
+
+Assuming that:
+
+* Winter = January-March
+* Spring = April-June
+* Summer = July-September
+* Fall = October-December
+
+Summer season has the most gun deaths. 
+
+```{r}
+gun_deaths$season <- cut(gun_deaths$month,
+                         breaks = c(-Inf, 3, 6, 9, Inf),
+                         labels = c("Winter","Spring","Summer", "Fall"))
+
+season.gun <- gun_deaths %>%
+  group_by(season) %>%
+  summarize(count = n())
+
+kable(season.gun, 
+      caption = "Gun Deaths in the United States (2012-2014) by Season",
+      col.names = c("Season", "Number of Deaths"), digits = 2)
+
+ggplot(data = gun_deaths) + 
+  geom_bar(aes(season, fill = season)) + 
+  ggtitle("Gun Deaths in the United States (2012-2014) by Season") + 
+  xlab("Season") + 
+  ylab("Number of Gun Deaths") + 
+  scale_fill_discrete(guide=FALSE)
+
+```
+
+## What is the relationship between race and intent?
+
+Whites who are killed by guns are more likely to die because of suicide, whereas blacks and hispanics are more likely to die because of homicide. 
+
+```{r}
+gun_deaths$newrace <- str_wrap(gun_deaths$race, width = 10)
+
+intent.gun <- gun_deaths %>%
+  group_by(race, intent) %>%
+  summarize(count= n())
+
+kable(intent.gun, col.names = c("Race of Victim", "Intent of Shooting", "Number of Deaths"))
+```
+
+### Using a horizontal bar graph 
+```{r}
+ggplot(data = gun_deaths) + 
+  geom_bar(aes(x =newrace, fill=intent), position = "fill") + 
+  ggtitle("Gun Deaths in the United States (2012-2014) by Race and Intent") + 
+  xlab("Race of Victim") + 
+  ylab("Percent of Gun Death Victims") + 
+  labs(fill = "Intent") +
+  theme(legend.position = "bottom") +
+  coord_flip() + 
+  ylim(0, 70000) + 
+  scale_y_continuous(labels = percent_format())
+```
+
+## Are police-involved gun deaths significantly different from other gun deaths? Assess the relationship between police involvement and age, police involvement and race, and the intersection of all three variables.
+The age of police-involved gun death victims is often younger than other victims.
+
+```{r, results='hide'}
+cut(gun_deaths$police, breaks = c(-.99,0,1))
+gun_deaths$police <- factor(gun_deaths$police)
+```
+
+### Investigating police involvement and average age of victims with a boxplot
+```{r}
+ggplot(data=gun_deaths) + 
+  geom_boxplot(aes(x = police, y= age, fill='cyl')) + 
+  ggtitle("Average Age of Victims (2012-2014) by Police Involvement") +
+  ylab("Age of Victim") +
+  xlab("") + 
+  scale_x_discrete(
+    breaks = c(0,1), 
+    labels = c("No police involved","Police Involved")) + 
+  scale_fill_discrete(guide=FALSE)
+```
+
+### Investigating percentage of gun death victims by race and policement involvement with a bar graph 
+There are significantly higher percentage of Hispanic gun death victims, who died due to an officer-involved shooting, when compared to percentage of Hispanic victims who died without police involvement. Conversely, the percentage of victims who were white in a police-involved gun death were smaller than percentage of White victims who died without police involvement.
+
+```{r}
+gun_deaths$race <- str_wrap(gun_deaths$race, width = 15)
+gun_deaths$race <- factor(gun_deaths$race)
+
+ggplot(data = gun_deaths) + 
+  geom_bar(aes(x=police, fill=race), position = "fill") + 
+  ggtitle("Percentage of Gun Death Victims by Race and Police Involvement") +
+  labs(fill = "Race") + 
+  ylab("Percent of Gun Death Victims") + 
+  xlab("") +
+  scale_y_continuous(labels = percent_format()) + 
+  scale_x_discrete(breaks = c(0,1), 
+                     labels = c("No police involved","Police Involved"))
+```
+
+### Relationship between police involvement, race and age
+With the exception of the Black gun death victims, the average age of victims who died as a result of an officer-involved shooting was younger than victims who died without police involvement. 
+```{r, results ='hide'}
+gun_deaths$rac[gun_deaths$race=="Asian/Pacific Islander"] <- 1
+gun_deaths$rac[gun_deaths$race=="Black"] <- 2
+gun_deaths$rac[gun_deaths$race=="Hispanic"] <- 3
+gun_deaths$rac[gun_deaths$race=="Native American/Native Alaskan"] <- 4
+gun_deaths$rac[gun_deaths$race=="White"] <- 5
+cut(gun_deaths$rac, breaks = c(0,1,2,3,4,5))
+```
+
+```{r}
+ggplot(data = gun_deaths) + 
+  geom_boxplot(aes(x=race, y=age, fill=police)) + 
+  ggtitle("Relationship between Age, Race and Police Involvement") +
+  xlab("Race of Victim") + 
+  ylab("Age of Victim") +
+  theme(legend.position = "bottom") +
+  scale_fill_discrete(name = "Shooting Type",
+                      breaks = c("0", "1"),
+                      labels = c("No Police Involved", "Police Involved")) +
+  coord_flip()
+
+ggplot(data = gun_deaths) + 
+  geom_boxplot(
+    aes(x=police, y=age, fill=race)) + 
+  ggtitle("Relationship between Age, Race and Police Involvement") +
+  xlab("Shooting Type") + 
+  ylab("Age of Victim") +
+  labs(fill = "Race of Victim") +
+  scale_x_discrete(breaks = c(0,1), 
+                     labels = c("No police involved","Police Involved")) +
+  theme(legend.position = "bottom") 
+```
+
+## Session info
+
+```{r}
+# don't modify this chunk
+devtools::session_info()
+```
+
+
